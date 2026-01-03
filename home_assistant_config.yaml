@@ -1,0 +1,229 @@
+# Home Assistant Configuration for Stellar Unicorn
+# ==============================================
+#
+# The Stellar Unicorn uses MQTT auto-discovery, so entities should appear
+# automatically in Home Assistant. If they don't, add this manual configuration.
+#
+# Copy the relevant sections to your Home Assistant configuration.yaml
+
+
+# ============================================================================
+# MANUAL MQTT CONFIGURATION (only needed if auto-discovery doesn't work)
+# ============================================================================
+
+mqtt:
+  light:
+    - name: "Stellar Unicorn"
+      unique_id: stellar_unicorn_light
+      command_topic: "unicorn/power/set"
+      state_topic: "unicorn/state"
+      state_value_template: "{{ value_json.state }}"
+      brightness_command_topic: "unicorn/brightness/set"
+      brightness_state_topic: "unicorn/state"
+      brightness_value_template: "{{ value_json.brightness }}"
+      rgb_command_topic: "unicorn/color/set"
+      rgb_command_template: "{{ red }},{{ green }},{{ blue }}"
+      rgb_state_topic: "unicorn/state"
+      rgb_value_template: "{{ value_json.color.r }},{{ value_json.color.g }},{{ value_json.color.b }}"
+      effect_command_topic: "unicorn/effect/set"
+      effect_state_topic: "unicorn/state"
+      effect_value_template: "{{ value_json.effect }}"
+      effect_list:
+        - none
+        - rainbow
+        - fire
+        - plasma
+        - sparkle
+        - matrix
+        - gradient
+      availability_topic: "unicorn/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+
+  text:
+    - name: "Stellar Unicorn Text"
+      unique_id: stellar_unicorn_text
+      command_topic: "unicorn/text/set"
+      state_topic: "unicorn/state"
+      value_template: "{{ value_json.text }}"
+      availability_topic: "unicorn/availability"
+
+
+# ============================================================================
+# EXAMPLE AUTOMATIONS
+# ============================================================================
+
+# Add these to your automations.yaml or automation: section
+
+automation:
+  # Show doorbell notification
+  - alias: "Unicorn - Doorbell Alert"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.doorbell
+        to: "on"
+    action:
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/text/set"
+          payload: "DOORBELL!"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/color/set"
+          payload: "255,200,0"
+      - delay: "00:00:10"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/effect/set"
+          payload: "none"
+
+  # Show weather on wake up
+  - alias: "Unicorn - Morning Weather"
+    trigger:
+      - platform: time
+        at: "07:00:00"
+    action:
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/power/set"
+          payload: "ON"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/text/set"
+          payload: "{{ states('sensor.temperature') }}C {{ states('weather.home') }}"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/color/set"
+          payload: "100,150,255"
+
+  # Fire effect at sunset
+  - alias: "Unicorn - Sunset Fire"
+    trigger:
+      - platform: sun
+        event: sunset
+    action:
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/effect/set"
+          payload: "fire"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/brightness/set"
+          payload: "150"
+
+  # Rainbow when arriving home
+  - alias: "Unicorn - Welcome Home"
+    trigger:
+      - platform: state
+        entity_id: person.andrew
+        to: "home"
+    action:
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/power/set"
+          payload: "ON"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/effect/set"
+          payload: "rainbow"
+      - delay: "00:01:00"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/effect/set"
+          payload: "none"
+
+  # Turn off at bedtime
+  - alias: "Unicorn - Bedtime Off"
+    trigger:
+      - platform: time
+        at: "23:00:00"
+    action:
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/power/set"
+          payload: "OFF"
+
+
+# ============================================================================
+# EXAMPLE SCRIPTS
+# ============================================================================
+
+script:
+  unicorn_notification:
+    alias: "Unicorn Notification"
+    description: "Show a notification on the Unicorn display"
+    fields:
+      message:
+        description: "Message to display"
+        example: "Hello World!"
+      color:
+        description: "RGB color as R,G,B"
+        example: "255,0,0"
+        default: "255,255,255"
+    sequence:
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/text/set"
+          payload: "{{ message }}"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/color/set"
+          payload: "{{ color }}"
+
+  unicorn_alert:
+    alias: "Unicorn Alert"
+    description: "Flash an alert on the Unicorn"
+    fields:
+      message:
+        description: "Alert message"
+        example: "ALERT!"
+    sequence:
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/brightness/set"
+          payload: "255"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/color/set"
+          payload: "255,0,0"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/text/set"
+          payload: "{{ message }}"
+
+
+# ============================================================================
+# LOVELACE DASHBOARD CARD
+# ============================================================================
+
+# Add this to your Lovelace dashboard for a control card:
+#
+# type: entities
+# title: Stellar Unicorn
+# entities:
+#   - entity: light.stellar_unicorn
+#   - entity: text.stellar_unicorn_text
+#   - type: button
+#     name: Rainbow
+#     tap_action:
+#       action: call-service
+#       service: mqtt.publish
+#       data:
+#         topic: unicorn/effect/set
+#         payload: rainbow
+#   - type: button
+#     name: Fire
+#     tap_action:
+#       action: call-service
+#       service: mqtt.publish
+#       data:
+#         topic: unicorn/effect/set
+#         payload: fire
+#   - type: button
+#     name: Matrix
+#     tap_action:
+#       action: call-service
+#       service: mqtt.publish
+#       data:
+#         topic: unicorn/effect/set
+#         payload: matrix
