@@ -17,10 +17,11 @@ Control your Pimoroni Stellar Unicorn 16x16 LED matrix from Home Assistant via M
 ## Files
 
 - `config.py` - WiFi and MQTT configuration (copy from `config.example.py`)
-- `main.py` - Main application code
-- `effects.py` - Visual effects module
-- `home_assistant_config.yaml` - Example HA configuration and automations
+- `core.py` - Shared rendering logic (effects, clock, text, colors)
+- `main.py` - MicroPython entry point for Stellar Unicorn hardware
 - `simulator.py` - Desktop simulator for testing without hardware
+- `Makefile` - Build/deploy commands for Pico
+- `home_assistant_config.yaml` - Example HA configuration and automations
 - `requirements.txt` - Python dependencies for simulator
 
 ## Setup Instructions
@@ -50,25 +51,32 @@ WIFI_PASSWORD = "YourWiFiPassword"
 MQTT_BROKER = "192.168.1.x"  # Your Pi's IP address
 ```
 
-### 3. Copy Files to Pico W
+### 3. Deploy to Pico W
 
-Using Thonny IDE or mpremote:
+Using the Makefile (recommended):
 
 ```bash
-# Using mpremote
-mpremote cp config.py :config.py
-mpremote cp main.py :main.py
-mpremote cp effects.py :effects.py
+# Install mpremote if needed
+pip install mpremote
+
+# Deploy all files to Pico
+make deploy
+
+# Install umqtt library on Pico
+make install-deps
+
+# Or deploy and restart in one command
+make run
 ```
 
-Or with Thonny:
+Or manually with Thonny:
 1. Open Thonny IDE
 2. Connect to Stellar Unicorn (View > Files)
-3. Upload all three `.py` files
+3. Upload `config.py`, `core.py`, and `main.py`
 
 ### 4. Install umqtt Library
 
-The `umqtt.simple` library may need to be installed:
+If not using `make install-deps`:
 
 ```python
 # In Thonny REPL or via mpremote
@@ -192,6 +200,6 @@ mosquitto_pub -t "unicorn/effect/set" -m "clock"
 - Ensure `umqtt.simple` is installed
 
 ### Effects Not Working
-- Check `effects.py` is uploaded
+- Check `core.py` is uploaded
 - Verify effect name matches available list
 - Check for import errors in serial output
