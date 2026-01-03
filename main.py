@@ -5,6 +5,7 @@ import time
 import json
 import network
 import machine
+import ntptime
 from umqtt.simple import MQTTClient
 from stellar import StellarUnicorn
 from picographics import PicoGraphics, DISPLAY_STELLAR_UNICORN as DISPLAY
@@ -28,6 +29,13 @@ power_on = True
 text_scroll_position = 0
 last_scroll_time = 0
 SCROLL_SPEED = 0.075  # seconds between scroll steps
+
+# Sensor status display
+# Format: {"luke": "open", "front": "closed", "back": "closed"}
+sensor_status = {}
+show_sensors = True  # Default to clock/sensor mode
+sensor_scroll_pos = WIDTH
+last_sensor_scroll = 0
 
 # Effects manager
 effects = Effects(su, graphics, WIDTH, HEIGHT)
@@ -59,10 +67,46 @@ def connect_wifi():
     return wlan
 
 
+def sync_time():
+    """Sync time via NTP"""
+    try:
+        print("Syncing time via NTP...")
+        ntptime.settime()
+
+        # Get current UTC time and apply timezone offset
+        utc_time = time.time()
+        tm = time.localtime(utc_time)
+
+        # Determine timezone offset
+        if config.TIMEZONE_OFFSET is not None:
+            offset_hours = config.TIMEZONE_OFFSET
+        else:
+            # Auto-detect BST (rough: April-October = +1)
+            month = tm[1]
+            if 4 <= month <= 10:
+                offset_hours = 1  # BST
+            else:
+                offset_hours = 0  # GMT
+
+        local_time = utc_time + (offset_hours * 3600)
+        tm = time.localtime(local_time)
+
+        # Set RTC to local time
+        rtc = machine.RTC()
+        rtc.datetime((tm[0], tm[1], tm[2], tm[6], tm[3], tm[4], tm[5], 0))
+
+        print(f"Time synced: {tm[3]:02d}:{tm[4]:02d}:{tm[5]:02d} (UTC{'+' if offset_hours >= 0 else ''}{offset_hours})")
+        return True
+    except Exception as e:
+        print(f"NTP sync failed: {e}")
+        return False
+
+
 # MQTT callbacks
 def on_message(topic, msg):
     global current_text, current_brightness, current_color, current_bg_color
     global current_effect, power_on, text_scroll_position
+    global sensor_status, show_sensors, sensor_scroll_pos
 
     topic = topic.decode()
     msg = msg.decode()
@@ -73,6 +117,7 @@ def on_message(topic, msg):
         current_text = msg
         text_scroll_position = WIDTH  # Start from right edge
         current_effect = "none"  # Stop effects when showing text
+        show_sensors = False  # Hide sensors when showing text
 
     elif topic == config.MQTT_TOPIC_BRIGHTNESS:
         try:
@@ -92,13 +137,30 @@ def on_message(topic, msg):
 
     elif topic == config.MQTT_TOPIC_EFFECT:
         current_effect = msg.lower()
-        if current_effect != "none":
+        if current_effect == "clock":
+            # Switch back to clock/sensor mode
+            show_sensors = True
+            current_text = ""
+            current_effect = "none"
+        elif current_effect != "none":
             current_text = ""  # Clear text when showing effect
+            show_sensors = False  # Hide sensors when showing effect
 
     elif topic == config.MQTT_TOPIC_POWER:
         power_on = msg.lower() in ("on", "true", "1")
         if not power_on:
             clear_display()
+
+    elif topic == config.MQTT_TOPIC_SENSORS:
+        try:
+            # JSON format: {"luke": "open", "front": "closed", "back": "closed"}
+            sensor_status = json.loads(msg)
+            show_sensors = True
+            current_text = ""  # Clear text
+            current_effect = "none"  # Stop effects
+            sensor_scroll_pos = WIDTH  # Reset scroll position
+        except (ValueError, TypeError):
+            pass
 
     publish_state()
 
@@ -223,12 +285,98 @@ def draw_text():
     return True
 
 
+def draw_clock():
+    """Draw current time with hours on top, minutes on bottom"""
+    # Clear display
+    graphics.set_pen(graphics.create_pen(0, 0, 0))
+    graphics.clear()
+
+    # Get current time from RTC
+    current_time = machine.RTC().datetime()
+    hours = current_time[4]
+    mins = current_time[5]
+
+    hours_str = f"{hours:02d}"
+    mins_str = f"{mins:02d}"
+
+    # Muted teal color (brighter to account for brightness reduction)
+    graphics.set_pen(graphics.create_pen(0, 150, 120))
+    graphics.set_font("bitmap8")
+
+    # Hours on top row (centered, shifted 1 pixel left)
+    hours_width = graphics.measure_text(hours_str, 1)
+    hours_x = (WIDTH - hours_width) // 2 - 1
+    graphics.text(hours_str, hours_x, 2, -1, 1)
+
+    # Minutes on bottom row (centered, shifted 1 pixel left)
+    mins_width = graphics.measure_text(mins_str, 1)
+    mins_x = (WIDTH - mins_width) // 2 - 1
+    graphics.text(mins_str, mins_x, 9, -1, 1)
+
+
+def draw_sensors():
+    """Draw open doors as scrolling red text, or clock if all secure"""
+    global sensor_scroll_pos, last_sensor_scroll
+
+    if not sensor_status:
+        return False
+
+    # Build list of OPEN doors only
+    open_doors = []
+    for name, status in sensor_status.items():
+        is_open = status.lower() in ("open", "on", "true", "1")
+        if is_open:
+            open_doors.append(name.upper())
+
+    # If all doors closed, show clock
+    if not open_doors:
+        draw_clock()
+        return True
+
+    # Clear display
+    graphics.set_pen(graphics.create_pen(0, 0, 0))
+    graphics.clear()
+
+    # Red color for alerts
+    red = graphics.create_pen(255, 0, 0)
+    graphics.set_pen(red)
+    graphics.set_font("bitmap8")
+
+    # Calculate total width
+    total_width = 0
+    for name in open_doors:
+        total_width += graphics.measure_text(name + "  ", 1)
+
+    # Draw each open door name
+    y_pos = (HEIGHT - 8) // 2
+    x_pos = int(sensor_scroll_pos)
+
+    for name in open_doors:
+        graphics.text(name + "  ", x_pos, y_pos, -1, 1)
+        x_pos += graphics.measure_text(name + "  ", 1)
+
+    # Update scroll position
+    current_time = time.ticks_ms()
+    if time.ticks_diff(current_time, last_sensor_scroll) > SCROLL_SPEED * 1000:
+        last_sensor_scroll = current_time
+        sensor_scroll_pos -= 1
+
+        # Reset when scrolled off screen
+        if sensor_scroll_pos < -total_width:
+            sensor_scroll_pos = WIDTH
+
+    return True
+
+
 def update_display():
     """Main display update function"""
     if not power_on:
         return
 
-    if current_effect != "none" and current_effect in effects.available:
+    if show_sensors:
+        draw_sensors()
+        su.update(graphics)
+    elif current_effect != "none" and current_effect in effects.available:
         effects.run(current_effect)
     elif current_text:
         draw_text()
@@ -261,6 +409,9 @@ su.update(graphics)
 # Connect to WiFi
 wlan = connect_wifi()
 
+# Sync time via NTP
+sync_time()
+
 # Setup MQTT
 mqtt_client = MQTTClient(
     config.MQTT_CLIENT_ID,
@@ -283,6 +434,7 @@ mqtt_client.subscribe(config.MQTT_TOPIC_BRIGHTNESS)
 mqtt_client.subscribe(config.MQTT_TOPIC_COLOR)
 mqtt_client.subscribe(config.MQTT_TOPIC_EFFECT)
 mqtt_client.subscribe(config.MQTT_TOPIC_POWER)
+mqtt_client.subscribe(config.MQTT_TOPIC_SENSORS)
 print("Subscribed to topics")
 
 # Publish availability and discovery
@@ -311,6 +463,7 @@ while True:
                 mqtt_client.subscribe(config.MQTT_TOPIC_COLOR)
                 mqtt_client.subscribe(config.MQTT_TOPIC_EFFECT)
                 mqtt_client.subscribe(config.MQTT_TOPIC_POWER)
+                mqtt_client.subscribe(config.MQTT_TOPIC_SENSORS)
                 mqtt_client.publish(config.MQTT_TOPIC_AVAILABILITY, "online", retain=True)
             except:
                 pass

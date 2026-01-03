@@ -56,6 +56,47 @@ mqtt:
 # Add these to your automations.yaml or automation: section
 
 automation:
+  # Flash message when dining room lights turn on
+  - alias: "Unicorn - Dining Room Lights On"
+    trigger:
+      - platform: state
+        entity_id: light.dining_room
+        to: "on"
+    action:
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/color/set"
+          payload: "255,200,100"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/text/set"
+          payload: "DINNER TIME!"
+      - delay: "00:00:10"
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/effect/set"
+          payload: "none"
+
+  # Update sensor status display whenever a door/window changes
+  # Replace binary_sensor entities with your actual sensor entity IDs
+  - alias: "Unicorn - Update Sensor Display"
+    trigger:
+      - platform: state
+        entity_id:
+          - binary_sensor.luke_room_door  # Replace with your sensor
+          - binary_sensor.front_door      # Replace with your sensor
+          - binary_sensor.back_door       # Replace with your sensor
+    action:
+      - service: mqtt.publish
+        data:
+          topic: "unicorn/sensors/set"
+          payload: >-
+            {
+              "luke": "{{ states('binary_sensor.luke_room_door') }}",
+              "front": "{{ states('binary_sensor.front_door') }}",
+              "back": "{{ states('binary_sensor.back_door') }}"
+            }
+
   # Show doorbell notification
   - alias: "Unicorn - Doorbell Alert"
     trigger:

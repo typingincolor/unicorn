@@ -8,14 +8,20 @@ Control your Pimoroni Stellar Unicorn 16x16 LED matrix from Home Assistant via M
 - **RGB Color Control**: Set any color for text or solid fill
 - **Brightness Control**: Adjust brightness from Home Assistant
 - **Effects**: Rainbow, Fire, Plasma, Sparkle, Matrix, Gradient
+- **Door/Window Sensors**: Display open doors as scrolling red alerts
+- **Clock Display**: Shows time when all sensors are secure
+- **NTP Time Sync**: Automatic time synchronization with BST/GMT detection
 - **MQTT Discovery**: Auto-configures in Home Assistant
+- **Simulator**: Test on Mac/PC without hardware
 
 ## Files
 
-- `config.py` - WiFi and MQTT configuration
+- `config.py` - WiFi and MQTT configuration (copy from `config.example.py`)
 - `main.py` - Main application code
 - `effects.py` - Visual effects module
 - `home_assistant_config.yaml` - Example HA configuration and automations
+- `simulator.py` - Desktop simulator for testing without hardware
+- `requirements.txt` - Python dependencies for simulator
 
 ## Setup Instructions
 
@@ -97,11 +103,14 @@ Entities should auto-discover via MQTT. If not, add the manual configuration fro
 | `unicorn/brightness/set` | `0-255` | Set brightness |
 | `unicorn/color/set` | `255,0,0` | Set RGB color |
 | `unicorn/effect/set` | `rainbow` | Start effect |
+| `unicorn/effect/set` | `clock` | Return to clock/sensor mode |
 | `unicorn/power/set` | `ON`/`OFF` | Turn on/off |
+| `unicorn/sensors/set` | `{"front": "open"}` | Update door sensor status |
 
 ### Available Effects
 
 - `none` - Stop effects
+- `clock` - Return to clock/sensor display mode
 - `rainbow` - Rainbow wave
 - `fire` - Flames rising from bottom
 - `plasma` - Animated sine wave patterns
@@ -109,7 +118,39 @@ Entities should auto-discover via MQTT. If not, add the manual configuration fro
 - `matrix` - Matrix-style falling code
 - `gradient` - Animated color gradient
 
+### Door/Window Sensor Display
+
+Send sensor status as JSON to `unicorn/sensors/set`:
+
+```bash
+mosquitto_pub -t "unicorn/sensors/set" -m '{"front": "open", "back": "closed", "luke": "closed"}'
+```
+
+- Open doors display as scrolling red text
+- When all doors are closed, displays the clock
+- Send `clock` to `unicorn/effect/set` to return to this mode after showing effects
+
 ## Testing
+
+### Desktop Simulator
+
+Test without hardware using the simulator:
+
+```bash
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run simulator (connects to your MQTT broker)
+python3 simulator.py
+```
+
+The simulator displays a 16x16 grid in your terminal showing exactly what the Unicorn would display.
+
+### Command Line Testing
 
 Test from command line on your Pi:
 
@@ -125,6 +166,12 @@ mosquitto_pub -t "unicorn/effect/set" -m "rainbow"
 
 # Set brightness to 50%
 mosquitto_pub -t "unicorn/brightness/set" -m "128"
+
+# Update sensor status
+mosquitto_pub -t "unicorn/sensors/set" -m '{"front": "open", "back": "closed"}'
+
+# Return to clock display
+mosquitto_pub -t "unicorn/effect/set" -m "clock"
 ```
 
 ## Troubleshooting

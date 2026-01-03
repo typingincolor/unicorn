@@ -1,0 +1,2 @@
+# Simulator dependencies (for testing on Mac/PC)
+paho-mqtt>=2.0.0
