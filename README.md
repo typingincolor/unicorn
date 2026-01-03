@@ -30,7 +30,13 @@ https://github.com/pimoroni/unicorn/releases
 
 ### 2. Configure WiFi and MQTT
 
-Edit `config.py` with your settings:
+Copy the example config and edit with your settings:
+
+```bash
+cp config.example.py config.py
+```
+
+Edit `config.py`:
 
 ```python
 WIFI_SSID = "YourWiFiName"
