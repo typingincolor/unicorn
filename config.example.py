@@ -1,5 +1,5 @@
 # Space Unicorn - WiFi and MQTT Configuration
-# Copy this file to the Pico W and edit with your settings
+# Copy this file to config.py and edit with your settings
 
 # WiFi Settings
 WIFI_SSID = "YOUR_WIFI_SSID"

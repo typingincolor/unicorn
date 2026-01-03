@@ -21,6 +21,5 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Local config with secrets (template is tracked)
-# Uncomment if you want to track config.py as template
-# config.py
+# Local config with secrets (use config.example.py as template)
+config.py
