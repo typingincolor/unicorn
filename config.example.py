@@ -21,6 +21,9 @@ MQTT_TOPIC_EFFECT = f"{MQTT_TOPIC_PREFIX}/effect/set"
 MQTT_TOPIC_POWER = f"{MQTT_TOPIC_PREFIX}/power/set"
 MQTT_TOPIC_SENSORS = f"{MQTT_TOPIC_PREFIX}/sensors/set"
 
+# Door sensor topics (subscribe with wildcard)
+MQTT_TOPIC_DOOR_STATE = "home/door/+/state"
+
 # MQTT State Topics - Unicorn will publish state to these
 MQTT_TOPIC_STATE = f"{MQTT_TOPIC_PREFIX}/state"
 MQTT_TOPIC_AVAILABILITY = f"{MQTT_TOPIC_PREFIX}/availability"

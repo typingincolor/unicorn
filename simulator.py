@@ -14,7 +14,7 @@ from config import (
     MQTT_BROKER, MQTT_PORT, MQTT_USER, MQTT_PASSWORD, MQTT_CLIENT_ID,
     MQTT_TOPIC_TEXT, MQTT_TOPIC_BRIGHTNESS, MQTT_TOPIC_COLOR,
     MQTT_TOPIC_EFFECT, MQTT_TOPIC_POWER, MQTT_TOPIC_STATE,
-    MQTT_TOPIC_AVAILABILITY, MQTT_TOPIC_SENSORS
+    MQTT_TOPIC_AVAILABILITY, MQTT_TOPIC_SENSORS, MQTT_TOPIC_DOOR_STATE
 )
 from core import WIDTH, HEIGHT, DisplayState, Renderer
 
@@ -113,6 +113,7 @@ def on_connect(client, userdata, flags, rc, properties=None):
         client.subscribe(MQTT_TOPIC_EFFECT)
         client.subscribe(MQTT_TOPIC_POWER)
         client.subscribe(MQTT_TOPIC_SENSORS)
+        client.subscribe(MQTT_TOPIC_DOOR_STATE)
 
         client.publish(MQTT_TOPIC_AVAILABILITY, "online", retain=True)
         publish_state(client)
@@ -164,6 +165,16 @@ def on_message(client, userdata, msg):
             state.sensor_scroll_pos = WIDTH
         except (ValueError, TypeError):
             pass
+
+    elif topic.startswith("home/door/") and topic.endswith("/state"):
+        # Parse door name from topic: home/door/<name>/state
+        parts = topic.split("/")
+        if len(parts) == 4:
+            door_name = parts[2]
+            state.sensors[door_name] = payload
+            state.show_sensors = True
+            state.text = ""
+            state.effect = "none"
 
     publish_state(client)
 

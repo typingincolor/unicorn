@@ -160,6 +160,16 @@ def on_message(topic, msg):
         except (ValueError, TypeError):
             pass
 
+    elif topic.startswith("home/door/") and topic.endswith("/state"):
+        # Parse door name from topic: home/door/<name>/state
+        parts = topic.split("/")
+        if len(parts) == 4:
+            door_name = parts[2]
+            state.sensors[door_name] = msg
+            state.show_sensors = True
+            state.text = ""
+            state.effect = "none"
+
     publish_state()
 
 
@@ -287,6 +297,7 @@ mqtt_client.subscribe(config.MQTT_TOPIC_COLOR)
 mqtt_client.subscribe(config.MQTT_TOPIC_EFFECT)
 mqtt_client.subscribe(config.MQTT_TOPIC_POWER)
 mqtt_client.subscribe(config.MQTT_TOPIC_SENSORS)
+mqtt_client.subscribe(config.MQTT_TOPIC_DOOR_STATE)
 print("Subscribed to topics")
 
 # Publish availability and discovery
@@ -316,6 +327,7 @@ while True:
                 mqtt_client.subscribe(config.MQTT_TOPIC_EFFECT)
                 mqtt_client.subscribe(config.MQTT_TOPIC_POWER)
                 mqtt_client.subscribe(config.MQTT_TOPIC_SENSORS)
+                mqtt_client.subscribe(config.MQTT_TOPIC_DOOR_STATE)
                 mqtt_client.publish(config.MQTT_TOPIC_AVAILABILITY, "online", retain=True)
             except:
                 pass
