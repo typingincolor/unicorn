@@ -51,7 +51,7 @@ sim:
 
 # Install local dev dependencies
 dev-deps:
-	pip install -r requirements.txt mpremote
+	pip3 install paho-mqtt mpremote
 
 # Show help
 help:

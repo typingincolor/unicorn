@@ -204,37 +204,27 @@ class Renderer:
         draw_text(self.set_pixel, mins_str, mins_x, 9, r, g, b)
 
     def _render_sensors(self):
-        """Render sensor display - open doors scroll, clock if all closed"""
+        """Render sensor display - red border if doors open, clock always shown"""
         # Build list of open doors
         open_doors = []
         for name, status in self.state.sensors.items():
             if status.lower() in ("open", "on", "true", "1"):
                 open_doors.append(name.upper())
 
-        # If all closed, show clock
-        if not open_doors:
-            self._render_clock()
-            return
+        # Always show clock
+        self._render_clock()
 
-        self.clear()
-
-        # Calculate total width
-        total_width = 0
-        for name in open_doors:
-            total_width += measure_text(name + "  ")
-
-        # Draw open doors in red
-        y_pos = (HEIGHT - 5) // 2
-        x_pos = int(self.state.sensor_scroll_pos)
-
-        for name in open_doors:
-            draw_text(self.set_pixel, name, x_pos, y_pos, 255, 0, 0)
-            x_pos += measure_text(name + "  ")
-
-        # Update scroll
-        self.state.sensor_scroll_pos -= 0.5
-        if self.state.sensor_scroll_pos < -total_width:
-            self.state.sensor_scroll_pos = WIDTH
+        # Draw red border if any doors are open
+        if open_doors:
+            r, g, b = 255, 0, 0
+            # Top and bottom edges
+            for x in range(WIDTH):
+                self.set_pixel(x, 0, r, g, b)
+                self.set_pixel(x, HEIGHT - 1, r, g, b)
+            # Left and right edges
+            for y in range(HEIGHT):
+                self.set_pixel(0, y, r, g, b)
+                self.set_pixel(WIDTH - 1, y, r, g, b)
 
     def _render_text(self):
         """Render scrolling text"""
