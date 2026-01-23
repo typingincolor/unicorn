@@ -36,6 +36,15 @@ All topics prefixed with `unicorn/`:
 - `power/set` - "ON" or "OFF"
 - `state` - JSON state published by device
 - `availability` - "online" or "offline"
+- `logs` - Device logs as JSON (for Loki ingestion via mqtt-bridge)
+
+### Log Format
+
+Logs published to `unicorn/logs` use this JSON format:
+```json
+{"device": "stellar-unicorn", "level": "INFO", "message": "..."}
+```
+Levels: DEBUG, INFO, WARN, ERROR
 
 ## Adding New Effects
 

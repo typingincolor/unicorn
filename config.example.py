@@ -27,6 +27,7 @@ MQTT_TOPIC_DOOR_STATE = "home/door/+/state"
 # MQTT State Topics - Unicorn will publish state to these
 MQTT_TOPIC_STATE = f"{MQTT_TOPIC_PREFIX}/state"
 MQTT_TOPIC_AVAILABILITY = f"{MQTT_TOPIC_PREFIX}/availability"
+MQTT_TOPIC_LOGS = f"{MQTT_TOPIC_PREFIX}/logs"
 
 # Home Assistant MQTT Discovery prefix
 HA_DISCOVERY_PREFIX = "homeassistant"

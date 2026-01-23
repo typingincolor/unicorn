@@ -20,6 +20,24 @@ graphics = PicoGraphics(DISPLAY)
 # Shared state
 state = DisplayState()
 
+# MQTT logging helper
+mqtt_client = None  # Will be set after connection
+
+
+def log(message, level="INFO"):
+    """Log message to console and MQTT if connected"""
+    print(f"[{level}] {message}")
+    if mqtt_client is not None:
+        try:
+            log_payload = json.dumps({
+                "device": "stellar-unicorn",
+                "level": level,
+                "message": message
+            })
+            mqtt_client.publish(config.MQTT_TOPIC_LOGS, log_payload)
+        except:
+            pass  # Don't fail if logging fails
+
 
 # Display adapter functions for core.Renderer
 def clear_display():
@@ -53,7 +71,7 @@ def connect_wifi():
     wlan.active(True)
 
     if wlan.isconnected():
-        print(f"Already connected: {wlan.ifconfig()[0]}")
+        print(f"Already connected: {wlan.ifconfig()[0]}")  # Can't use log() yet, MQTT not connected
         return wlan
 
     print(f"Connecting to {config.WIFI_SSID}...")
@@ -77,7 +95,7 @@ def connect_wifi():
 def sync_time():
     """Sync time via NTP"""
     try:
-        print("Syncing time via NTP...")
+        print("Syncing time via NTP...")  # Can't use log() yet, MQTT not connected
         ntptime.settime()
 
         utc_time = time.time()
@@ -112,7 +130,7 @@ def on_message(topic, msg):
     topic = topic.decode()
     msg = msg.decode()
 
-    print(f"MQTT: {topic} = {msg}")
+    log(f"MQTT: {topic} = {msg}", "DEBUG")
 
     if topic == config.MQTT_TOPIC_TEXT:
         state.text = msg
@@ -242,7 +260,7 @@ def publish_ha_discovery():
         retain=True
     )
 
-    print("Published HA Discovery config")
+    log("Published HA Discovery config")
 
 
 def update_display():
@@ -298,13 +316,13 @@ def mqtt_subscribe_all():
     mqtt_client.subscribe(config.MQTT_TOPIC_DOOR_STATE)
 
 
-print(f"Connecting to MQTT broker {config.MQTT_BROKER}...")
+print(f"Connecting to MQTT broker {config.MQTT_BROKER}...")  # Can't log yet
 mqtt_client.connect()
-print("MQTT connected!")
+log("MQTT connected!")
 
 # Subscribe to command topics
 mqtt_subscribe_all()
-print("Subscribed to topics")
+log("Subscribed to topics")
 
 # Publish availability and discovery
 mqtt_client.publish(config.MQTT_TOPIC_AVAILABILITY, "online", retain=True)
@@ -330,7 +348,7 @@ last_wifi_check = time.ticks_ms()
 def check_wifi():
     """Check and reconnect WiFi if needed"""
     if not wlan.isconnected():
-        print("WiFi disconnected, reconnecting...")
+        log("WiFi disconnected, reconnecting...", "WARN")
         try:
             wlan.connect(config.WIFI_SSID, config.WIFI_PASSWORD)
             max_wait = 10
@@ -339,13 +357,13 @@ def check_wifi():
                 time.sleep(1)
 
             if wlan.isconnected():
-                print(f"WiFi reconnected! IP: {wlan.ifconfig()[0]}")
+                log(f"WiFi reconnected! IP: {wlan.ifconfig()[0]}")
                 return True
             else:
-                print("WiFi reconnection failed")
+                log("WiFi reconnection failed", "ERROR")
                 return False
         except Exception as e:
-            print(f"WiFi reconnection error: {e}")
+            log(f"WiFi reconnection error: {e}", "ERROR")
             return False
     return True
 
@@ -381,7 +399,7 @@ def mqtt_reconnect():
     mqtt_last_reconnect_attempt = current_time
     mqtt_reconnect_attempts += 1
 
-    print(f"MQTT reconnection attempt {mqtt_reconnect_attempts} (delay: {delay}ms)...")
+    print(f"[WARN] MQTT reconnection attempt {mqtt_reconnect_attempts} (delay: {delay}ms)...")  # Can't log, MQTT disconnected
 
     try:
         # Attempt to reconnect
@@ -396,17 +414,17 @@ def mqtt_reconnect():
         # Reset connection state
         mqtt_connected = True
         mqtt_reconnect_attempts = 0
-        print("MQTT reconnected successfully!")
+        log("MQTT reconnected successfully!")
 
     except OSError as e:
-        print(f"MQTT reconnect failed (OSError): {e}")
+        print(f"[ERROR] MQTT reconnect failed (OSError): {e}")
         mqtt_connected = False
     except Exception as e:
-        print(f"MQTT reconnect failed (Exception): {e}")
+        print(f"[ERROR] MQTT reconnect failed (Exception): {e}")
         mqtt_connected = False
 
 
-print("Starting main loop...")
+log("Starting main loop...")
 last_mqtt_check = time.ticks_ms()
 
 while True:
@@ -425,11 +443,11 @@ while True:
             try:
                 mqtt_client.check_msg()
             except OSError as e:
-                print(f"MQTT error during check_msg: {e}")
+                log(f"MQTT error during check_msg: {e}", "ERROR")
                 mqtt_connected = False
                 mqtt_last_reconnect_attempt = 0  # Allow immediate first reconnect
             except Exception as e:
-                print(f"MQTT unexpected error: {e}")
+                log(f"MQTT unexpected error: {e}", "ERROR")
                 mqtt_connected = False
                 mqtt_last_reconnect_attempt = 0
         else:
@@ -445,11 +463,11 @@ while True:
             mqtt_client.ping()
             last_mqtt_ping = current_time
         except OSError as e:
-            print(f"MQTT ping failed: {e}")
+            log(f"MQTT ping failed: {e}", "ERROR")
             mqtt_connected = False
             mqtt_last_reconnect_attempt = 0
         except Exception as e:
-            print(f"MQTT ping unexpected error: {e}")
+            log(f"MQTT ping unexpected error: {e}", "ERROR")
             mqtt_connected = False
             mqtt_last_reconnect_attempt = 0
 
