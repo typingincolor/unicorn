@@ -183,10 +183,18 @@ def on_message(topic, msg):
         parts = topic.split("/")
         if len(parts) == 4:
             door_name = parts[2]
+            prev_state = state.sensors.get(door_name)
             state.sensors[door_name] = msg
             state.show_sensors = True
             state.text = ""
             state.effect = "none"
+
+            # Play chime on state transition
+            if prev_state is not None and prev_state != msg:
+                if msg.lower() in ("open", "on", "true", "1"):
+                    start_chime(CHIME_OPEN_NOTES)
+                else:
+                    start_chime(CHIME_CLOSE_NOTES)
 
     publish_state()
 
@@ -332,6 +340,57 @@ publish_state()
 # Set initial brightness
 su.set_brightness(state.brightness / 255.0)
 
+# Door chime setup
+CHIME_NOTE_DURATION = 250  # ms per note
+CHIME_OPEN_NOTES = [659, 523]   # E5 -> C5 (descending "ding-dong")
+CHIME_CLOSE_NOTES = [523, 659]  # C5 -> E5 (ascending "dong-ding")
+
+chime_channel = su.synth_channel(0)
+chime_channel.configure(
+    waveforms=StellarUnicorn.WAVEFORM_SINE,
+    attack_duration=0.005,
+    decay_duration=0.1,
+    sustain_level=0.5,
+    release_duration=0.2,
+    volume=0.5
+)
+
+chime_notes = []       # Current note sequence to play
+chime_note_index = 0   # Which note we're on
+chime_start_time = 0   # When current note started
+chime_active = False
+
+
+def start_chime(notes):
+    """Start playing a chime sequence (non-blocking)"""
+    global chime_notes, chime_note_index, chime_start_time, chime_active
+    chime_notes = notes
+    chime_note_index = 0
+    chime_start_time = time.ticks_ms()
+    chime_active = True
+    chime_channel.frequency(notes[0])
+    chime_channel.trigger_attack()
+    su.play_synth()
+
+
+def tick_chime():
+    """Advance chime playback - call from main loop"""
+    global chime_note_index, chime_active
+    if not chime_active:
+        return
+
+    elapsed = time.ticks_diff(time.ticks_ms(), chime_start_time)
+    expected = (chime_note_index + 1) * CHIME_NOTE_DURATION
+
+    if elapsed >= expected:
+        chime_note_index += 1
+        if chime_note_index < len(chime_notes):
+            chime_channel.frequency(chime_notes[chime_note_index])
+            chime_channel.trigger_attack()
+        else:
+            chime_channel.trigger_release()
+            chime_active = False
+
 # Connection state tracking
 mqtt_connected = True
 mqtt_reconnect_attempts = 0
@@ -470,6 +529,9 @@ while True:
             log(f"MQTT ping unexpected error: {e}", "ERROR")
             mqtt_connected = False
             mqtt_last_reconnect_attempt = 0
+
+    # Advance chime playback
+    tick_chime()
 
     # Check physical buttons
     check_buttons()
