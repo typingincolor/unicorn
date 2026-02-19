@@ -342,18 +342,16 @@ su.set_brightness(state.brightness / 255.0)
 
 # Door chime setup
 CHIME_NOTE_DURATION = 250  # ms per note
-CHIME_OPEN_NOTES = [659, 523]   # E5 -> C5 (descending "ding-dong")
-CHIME_CLOSE_NOTES = [523, 659]  # C5 -> E5 (ascending "dong-ding")
+CHIME_OPEN_NOTES = [523, 659]   # C5 -> E5 (ascending)
+CHIME_CLOSE_NOTES = [659, 523]  # E5 -> C5 (descending)
 
 chime_channel = su.synth_channel(0)
-chime_channel.configure(
-    waveforms=StellarUnicorn.WAVEFORM_SINE,
-    attack_duration=0.005,
-    decay_duration=0.1,
-    sustain_level=0.5,
-    release_duration=0.2,
-    volume=0.5
-)
+chime_channel.waveforms(chime_channel.SINE)
+chime_channel.attack_duration(0.005)
+chime_channel.decay_duration(0.1)
+chime_channel.sustain_level(0.5)
+chime_channel.release_duration(0.2)
+chime_channel.volume(0.5)
 
 chime_notes = []       # Current note sequence to play
 chime_note_index = 0   # Which note we're on
