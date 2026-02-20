@@ -178,6 +178,9 @@ def on_message(topic, msg):
         except (ValueError, TypeError):
             pass
 
+    elif topic == config.MQTT_TOPIC_DOORBELL:
+        start_chime(DOORBELL_NOTES, DOORBELL_NOTE_DURATION)
+
     elif topic.startswith("home/door/") and topic.endswith("/state"):
         # Parse door name from topic: home/door/<name>/state
         parts = topic.split("/")
@@ -322,6 +325,7 @@ def mqtt_subscribe_all():
     mqtt_client.subscribe(config.MQTT_TOPIC_POWER)
     mqtt_client.subscribe(config.MQTT_TOPIC_SENSORS)
     mqtt_client.subscribe(config.MQTT_TOPIC_DOOR_STATE)
+    mqtt_client.subscribe(config.MQTT_TOPIC_DOORBELL)
 
 
 print(f"Connecting to MQTT broker {config.MQTT_BROKER}...")  # Can't log yet
@@ -344,6 +348,8 @@ su.set_brightness(state.brightness / 255.0)
 CHIME_NOTE_DURATION = 250  # ms per note
 CHIME_OPEN_NOTES = [523, 659]   # C5 -> E5 (ascending)
 CHIME_CLOSE_NOTES = [659, 523]  # E5 -> C5 (descending)
+DOORBELL_NOTE_DURATION = 400  # ms per note (longer for doorbell)
+DOORBELL_NOTES = [659, 523]  # E5 -> C5 (ding-dong)
 
 chime_channel = su.synth_channel(0)
 chime_channel.waveforms(chime_channel.SINE)
@@ -357,15 +363,17 @@ chime_notes = []       # Current note sequence to play
 chime_note_index = 0   # Which note we're on
 chime_start_time = 0   # When current note started
 chime_active = False
+chime_duration = CHIME_NOTE_DURATION  # Duration per note for current chime
 
 
-def start_chime(notes):
+def start_chime(notes, duration=None):
     """Start playing a chime sequence (non-blocking)"""
-    global chime_notes, chime_note_index, chime_start_time, chime_active
+    global chime_notes, chime_note_index, chime_start_time, chime_active, chime_duration
     chime_notes = notes
     chime_note_index = 0
     chime_start_time = time.ticks_ms()
     chime_active = True
+    chime_duration = duration if duration else CHIME_NOTE_DURATION
     chime_channel.frequency(notes[0])
     chime_channel.trigger_attack()
     su.play_synth()
@@ -378,7 +386,7 @@ def tick_chime():
         return
 
     elapsed = time.ticks_diff(time.ticks_ms(), chime_start_time)
-    expected = (chime_note_index + 1) * CHIME_NOTE_DURATION
+    expected = (chime_note_index + 1) * chime_duration
 
     if elapsed >= expected:
         chime_note_index += 1
@@ -434,6 +442,7 @@ def mqtt_subscribe_all():
     mqtt_client.subscribe(config.MQTT_TOPIC_POWER)
     mqtt_client.subscribe(config.MQTT_TOPIC_SENSORS)
     mqtt_client.subscribe(config.MQTT_TOPIC_DOOR_STATE)
+    mqtt_client.subscribe(config.MQTT_TOPIC_DOORBELL)
 
 
 def mqtt_reconnect():
