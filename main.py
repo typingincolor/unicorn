@@ -314,6 +314,7 @@ mqtt_client = MQTTClient(
 )
 
 mqtt_client.set_callback(on_message)
+mqtt_client.set_last_will(config.MQTT_TOPIC_AVAILABILITY, "offline", retain=True)
 
 
 def mqtt_subscribe_all():
@@ -357,7 +358,7 @@ chime_channel.attack_duration(0.005)
 chime_channel.decay_duration(0.1)
 chime_channel.sustain_level(0.5)
 chime_channel.release_duration(0.2)
-chime_channel.volume(0.5)
+chime_channel.volume(1.0)
 
 chime_notes = []       # Current note sequence to play
 chime_note_index = 0   # Which note we're on
